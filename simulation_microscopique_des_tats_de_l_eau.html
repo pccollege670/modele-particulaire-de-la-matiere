@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Microscopique des États de l'Eau</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ice: '#38bdf8',
+                        liquid: '#3b82f6',
+                        gas: '#f43f5e'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans overflow-x-hidden">
+
+    <!-- Header Bar -->
+    <header class="bg-slate-900/80 backdrop-blur border-b border-slate-800 px-4 py-3 sticky top-0 z-50 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-sky-500/10 rounded-lg border border-sky-500/20 text-sky-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-white tracking-wide">Simulation Microscopique : États de l'Eau</h1>
+                <p class="text-xs text-slate-400">Comportement moléculaire de H₂O (Solide, Liquide, Gaz)</p>
+            </div>
+        </div>
+        
+        <!-- Live Status Indicators -->
+        <div class="hidden sm:flex items-center space-x-4 text-xs font-medium">
+            <div id="stateBadge" class="px-3 py-1.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                <span id="stateBadgeText">État Solide (Glace)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 max-w-7xl mx-auto w-full">
+        
+        <!-- Left Panel: Simulation Display & Canvas -->
+        <section class="lg:col-span-8 flex flex-col gap-4">
+            <!-- Canvas Container -->
+            <div class="relative bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex-1 min-h-[420px] flex items-center justify-center">
+                <canvas id="simCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+                <!-- Floating Canvas Overlay Info -->
+                <div class="absolute top-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl p-3 text-xs space-y-1.5 pointer-events-none shadow-lg">
+                    <div class="flex items-center justify-between space-x-4 text-slate-300">
+                        <span>Énergie Cinétique (Ec):</span>
+                        <span id="statKinetic" class="font-mono text-amber-400 font-bold">0.00 J</span>
+                    </div>
+                    <div class="flex items-center justify-between space-x-4 text-slate-300">
+                        <span>Pression Estimée:</span>
+                        <span id="statPressure" class="font-mono text-emerald-400 font-bold">1.00 atm</span>
+                    </div>
+                    <div class="flex items-center justify-between space-x-4 text-slate-300">
+                        <span>Molécules actives:</span>
+                        <span id="statCount" class="font-mono text-sky-400 font-bold">70</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Touch / Mouse Help Bar (Positioned outside canvas to prevent covering molecules) -->
+            <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl px-4 py-2 flex items-center justify-center space-x-2 text-xs text-slate-400 shadow-sm">
+                <span>💡</span>
+                <span><strong>Astuce :</strong> Agitez le curseur ou le doigt sur le récipient pour interagir avec les molécules.</span>
+            </div>
+
+            <!-- Quick State Selector Buttons -->
+            <div class="grid grid-cols-3 gap-3">
+                <button id="btnIce" class="flex items-center justify-center space-x-2 py-3 px-4 bg-slate-800 hover:bg-sky-900/40 border border-slate-700 hover:border-sky-500/50 rounded-xl transition duration-200 text-slate-200 font-medium text-sm group">
+                    <span class="w-3 h-3 rounded-full bg-sky-400 group-hover:scale-125 transition-transform"></span>
+                    <span>Solide (-15 °C)</span>
+                </button>
+                <button id="btnLiquid" class="flex items-center justify-center space-x-2 py-3 px-4 bg-slate-800 hover:bg-blue-900/40 border border-slate-700 hover:border-blue-500/50 rounded-xl transition duration-200 text-slate-200 font-medium text-sm group">
+                    <span class="w-3 h-3 rounded-full bg-blue-500 group-hover:scale-125 transition-transform"></span>
+                    <span>Liquide (20 °C)</span>
+                </button>
+                <button id="btnGas" class="flex items-center justify-center space-x-2 py-3 px-4 bg-slate-800 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-500/50 rounded-xl transition duration-200 text-slate-200 font-medium text-sm group">
+                    <span class="w-3 h-3 rounded-full bg-rose-500 group-hover:scale-125 transition-transform"></span>
+                    <span>Gaz (120 °C)</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Panel: Control Parameters & Physics Options -->
+        <aside class="lg:col-span-4 flex flex-col gap-4">
+            
+            <!-- Parameter Sliders Box -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-6">
+                <h2 class="text-sm font-bold tracking-wider text-slate-400 uppercase flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                    </svg>
+                    <span>Contrôles de la Matière</span>
+                </h2>
+
+                <!-- Temperature Slider -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="tempSlider" class="font-medium text-slate-200">Température (T)</label>
+                        <div class="font-mono text-right">
+                            <span id="tempValue" class="text-sky-400 font-bold text-base">-15</span> °C 
+                            <span id="kelvinValue" class="text-slate-400 text-xs ml-1">(258.15 K)</span>
+                        </div>
+                    </div>
+                    <input type="range" id="tempSlider" min="-50" max="150" value="-15" step="1" 
+                           class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-400">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                        <span>-50°C (Glace)</span>
+                        <span>0°C</span>
+                        <span>100°C</span>
+                        <span>150°C (Vapeur)</span>
+                    </div>
+                </div>
+
+                <!-- Particle Count Slider -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="particleSlider" class="font-medium text-slate-200">Nombre de molécules</label>
+                        <span id="particleValue" class="font-mono text-sky-400 font-bold text-base">70</span>
+                    </div>
+                    <input type="range" id="particleSlider" min="20" max="130" value="70" step="5" 
+                           class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-400">
+                </div>
+
+                <!-- Visual Toggles -->
+                <div class="pt-2 border-t border-slate-800 space-y-3">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Affichage & Forces</h3>
+                    
+                    <label class="flex items-center space-x-3 cursor-pointer group">
+                        <input type="checkbox" id="chkBonds" checked class="w-4 h-4 rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+                        <span class="text-sm text-slate-300 group-hover:text-white transition">Liaisons Hydrogène (H-Bonds)</span>
+                    </label>
+
+                    <label class="flex items-center space-x-3 cursor-pointer group">
+                        <input type="checkbox" id="chkVectors" class="w-4 h-4 rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+                        <span class="text-sm text-slate-300 group-hover:text-white transition">Vecteurs de vitesse</span>
+                    </label>
+
+                    <label class="flex items-center space-x-3 cursor-pointer group">
+                        <input type="checkbox" id="chkGravity" checked class="w-4 h-4 rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+                        <span class="text-sm text-slate-300 group-hover:text-white transition">Champ de pesanteur (Gravité)</span>
+                    </label>
+                </div>
+
+                <!-- Action Controls -->
+                <div class="pt-2 border-t border-slate-800 flex space-x-2">
+                    <button id="btnPlayPause" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-medium text-sm transition flex items-center justify-center space-x-2">
+                        <svg id="playIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span id="playText">Pause</span>
+                    </button>
+                    <button id="btnReset" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium text-sm transition">
+                        Réinitialiser
+                    </button>
+                </div>
+            </div>
+
+            <!-- Info & Explanations Card -->
+            <div id="infoCard" class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex-1 flex flex-col justify-between">
+                <div>
+                    <h3 id="infoTitle" class="text-base font-bold text-sky-400 mb-2 flex items-center space-x-2">
+                        <span>État Solide (Glace)</span>
+                    </h3>
+                    <p id="infoDesc" class="text-xs text-slate-300 leading-relaxed">
+                        À température négative, les liaisons hydrogène maintiennent les molécules d'eau dans une structure cristalline compacte et ordonnée. Les molécules restent fixes et oscillent très faiblement sur place.
+                    </p>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center space-x-3 text-xs text-slate-400">
+                    <div class="w-3 h-3 rounded-full bg-red-500 shrink-0"></div>
+                    <span>Oxygène (O)</span>
+                    <div class="w-3 h-3 rounded-full bg-slate-100 border border-slate-400 shrink-0 ml-2"></div>
+                    <span>Hydrogène (H)</span>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <script>
+        // DOM Element References
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const tempSlider = document.getElementById('tempSlider');
+        const tempValue = document.getElementById('tempValue');
+        const kelvinValue = document.getElementById('kelvinValue');
+        const particleSlider = document.getElementById('particleSlider');
+        const particleValue = document.getElementById('particleValue');
+        const stateBadge = document.getElementById('stateBadge');
+        const stateBadgeText = document.getElementById('stateBadgeText');
+        const chkBonds = document.getElementById('chkBonds');
+        const chkVectors = document.getElementById('chkVectors');
+        const chkGravity = document.getElementById('chkGravity');
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        const playIcon = document.getElementById('playIcon');
+        const playText = document.getElementById('playText');
+        const btnReset = document.getElementById('btnReset');
+        const btnIce = document.getElementById('btnIce');
+        const btnLiquid = document.getElementById('btnLiquid');
+        const btnGas = document.getElementById('btnGas');
+        const infoTitle = document.getElementById('infoTitle');
+        const infoDesc = document.getElementById('infoDesc');
+        const statKinetic = document.getElementById('statKinetic');
+        const statPressure = document.getElementById('statPressure');
+        const statCount = document.getElementById('statCount');
+
+        // Simulation State
+        let width = 0;
+        let height = 0;
+        let isRunning = true;
+        let temperature = parseFloat(tempSlider.value); // °C
+        let targetParticleCount = parseInt(particleSlider.value);
+        let molecules = [];
+        let wallCollisionsCount = 0;
+        let currentPressure = 1.0;
+
+        // Container wall offset
+        const wallOffset = 24;
+
+        // Mouse & Touch interaction state
+        let mouse = { x: -1000, y: -1000, active: false };
+
+        class Molecule {
+            constructor(x, y, gridX, gridY, angle) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 0.4;
+                this.vy = (Math.random() - 0.5) * 0.4;
+                
+                // Spatial angle of H2O molecule
+                this.angle = angle !== undefined ? angle : Math.random() * Math.PI * 2;
+                this.va = (Math.random() - 0.5) * 0.02;
+
+                // Reference crystal grid position for Ice state
+                this.gridX = gridX || x;
+                this.gridY = gridY || y;
+                this.gridAngle = this.angle;
+
+                // Oxygen atom radius and H2O geometry
+                this.radiusO = 8;
+                this.distH = 10; 
+                this.angleH = 104.5 * (Math.PI / 180); // 104.5° bend angle
+            }
+
+            getH1() {
+                return {
+                    x: this.x + Math.cos(this.angle - this.angleH / 2) * this.distH,
+                    y: this.y + Math.sin(this.angle - this.angleH / 2) * this.distH
+                };
+            }
+
+            getH2() {
+                return {
+                    x: this.x + Math.cos(this.angle + this.angleH / 2) * this.distH,
+                    y: this.y + Math.sin(this.angle + this.angleH / 2) * this.distH
+                };
+            }
+
+            update(tempC, useGravity) {
+                if (!isRunning) return;
+
+                const tempK = tempC + 273.15;
+                const thermalSpeed = Math.sqrt(tempK) * 0.12;
+                let drag = 0.98;
+
+                if (tempC < 0) {
+                    // === SOLID STATE (ICE) ===
+                    const kRappel = 0.12; 
+                    this.vx += (this.gridX - this.x) * kRappel;
+                    this.vy += (this.gridY - this.y) * kRappel;
+                    this.va += (this.gridAngle - this.angle) * kRappel;
+
+                    // Vibrational thermal motion
+                    const vib = (tempK / 300) * 0.35;
+                    this.vx += (Math.random() - 0.5) * vib;
+                    this.vy += (Math.random() - 0.5) * vib;
+                    drag = 0.75; 
+                } 
+                else if (tempC <= 100) {
+                    // === LIQUID STATE (WATER) ===
+                    if (useGravity) {
+                        this.vy += 0.22; // Gravity force
+                    }
+                    drag = 0.94; // Viscous liquid damping
+
+                    // Thermal fluctuation
+                    this.vx += (Math.random() - 0.5) * thermalSpeed * 0.2;
+                    this.vy += (Math.random() - 0.5) * thermalSpeed * 0.2;
+                    this.va += (Math.random() - 0.5) * 0.03;
+                } 
+                else {
+                    // === GAS STATE (STEAM) ===
+                    drag = 0.998;
+                    this.vx += (Math.random() - 0.5) * thermalSpeed * 0.45;
+                    this.vy += (Math.random() - 0.5) * thermalSpeed * 0.45;
+                    this.va += (Math.random() - 0.5) * 0.05;
+                }
+
+                // Apply damping & drag
+                this.vx *= drag;
+                this.vy *= drag;
+                this.va *= drag;
+
+                // Move molecule
+                this.x += this.vx;
+                this.y += this.vy;
+                this.angle += this.va;
+
+                // Mouse / Touch interaction
+                if (mouse.active) {
+                    const mdx = this.x - mouse.x;
+                    const mdy = this.y - mouse.y;
+                    const mdist = Math.hypot(mdx, mdy);
+                    if (mdist < 70 && mdist > 0) {
+                        const force = ((70 - mdist) / 70) * 2.5;
+                        this.vx += (mdx / mdist) * force;
+                        this.vy += (mdy / mdist) * force;
+                    }
+                }
+
+                // Container boundary collisions
+                const minX = wallOffset + this.radiusO;
+                const maxX = width - wallOffset - this.radiusO;
+                const minY = wallOffset + this.radiusO;
+                const maxY = height - wallOffset - this.radiusO;
+
+                if (this.x < minX) {
+                    this.x = minX;
+                    this.vx *= -0.8;
+                    wallCollisionsCount++;
+                } else if (this.x > maxX) {
+                    this.x = maxX;
+                    this.vx *= -0.8;
+                    wallCollisionsCount++;
+                }
+
+                if (this.y < minY) {
+                    this.y = minY;
+                    this.vy *= -0.8;
+                    wallCollisionsCount++;
+                } else if (this.y > maxY) {
+                    this.y = maxY;
+                    this.vy *= -0.8;
+                    wallCollisionsCount++;
+                }
+            }
+
+            draw() {
+                const h1 = this.getH1();
+                const h2 = this.getH2();
+
+                // Covalent O-H bonds
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(h1.x, h1.y);
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(h2.x, h2.y);
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                // Hydrogen (H) atoms
+                [h1, h2].forEach(function(h) {
+                    ctx.beginPath();
+                    ctx.arc(h.x, h.y, 4.5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fill();
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                });
+
+                // Oxygen (O) central atom
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radiusO, 0, Math.PI * 2);
+                const grad = ctx.createRadialGradient(
+                    this.x - 2, this.y - 2, 1,
+                    this.x, this.y, this.radiusO
+                );
+                grad.addColorStop(0, '#f87171');
+                grad.addColorStop(1, '#dc2626');
+                ctx.fillStyle = grad;
+                ctx.fill();
+                ctx.strokeStyle = '#b91c1c';
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                // Optional velocity vector
+                if (chkVectors.checked) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.x + this.vx * 6, this.y + this.vy * 6);
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function generateIceGrid(count) {
+            const grid = [];
+            const spacingX = 22; 
+            const spacingY = 19;
+            const usableWidth = width - (wallOffset * 2) - 30;
+            const cols = Math.floor(usableWidth / spacingX);
+            
+            const startX = wallOffset + 15 + (usableWidth - (cols * spacingX)) / 2;
+            const startY = height - wallOffset - 15;
+
+            let col = 0;
+            let row = 0;
+
+            for (let i = 0; i < count; i++) {
+                let x = startX + col * spacingX + (row % 2 === 1 ? spacingX / 2 : 0);
+                let y = startY - row * spacingY;
+
+                if (x > width - wallOffset - 25) {
+                    col = 0;
+                    row++;
+                    x = startX + col * spacingX + (row % 2 === 1 ? spacingX / 2 : 0);
+                    y = startY - row * spacingY;
+                }
+
+                if (y < wallOffset + 25) y = wallOffset + 25 + Math.random() * (height - wallOffset * 2 - 50);
+
+                const angle = (row % 2 === 0 ? Math.PI / 2 : -Math.PI / 2) + (Math.random() - 0.5) * 0.1;
+
+                grid.push({ x: x, y: y, angle: angle });
+                col++;
+            }
+            return grid;
+        }
+
+        function initMolecules() {
+            molecules = [];
+            const grid = generateIceGrid(targetParticleCount);
+
+            for (let i = 0; i < targetParticleCount; i++) {
+                const g = grid[i] || { x: width / 2, y: height / 2, angle: 0 };
+                const spawnX = g.x;
+                const spawnY = temperature > 100 ? Math.random() * (height - wallOffset * 2 - 40) + wallOffset + 20 : g.y;
+                
+                const m = new Molecule(spawnX, spawnY, g.x, g.y, g.angle);
+                molecules.push(m);
+            }
+            statCount.textContent = targetParticleCount;
+        }
+
+        function drawContainerWalls() {
+            const w = wallOffset;
+
+            ctx.save();
+
+            // Dark glass frame
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.fillRect(0, 0, w, height);
+            ctx.fillRect(width - w, 0, w, height);
+            ctx.fillRect(0, 0, width, w);
+            ctx.fillRect(0, height - w, width, w);
+
+            // Luminous cyan border
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.shadowColor = 'rgba(56, 189, 248, 0.6)';
+            ctx.shadowBlur = 10;
+            ctx.strokeRect(w, w, width - w * 2, height - w * 2);
+            ctx.shadowBlur = 0;
+
+            // Outer bevel line
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.strokeRect(1, 1, width - 2, height - 2);
+
+            // Volumetric Graduations
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+            ctx.fillStyle = '#93c5fd';
+            ctx.font = 'bold 9px Inter, sans-serif';
+            ctx.textAlign = 'left';
+
+            const innerH = height - w * 2;
+            const ticks = 4;
+            for (let i = 1; i <= ticks; i++) {
+                const tickY = height - w - (innerH / (ticks + 1)) * i;
+                
+                ctx.beginPath();
+                ctx.moveTo(w, tickY);
+                ctx.lineTo(w + 10, tickY);
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillText((i * 50) + ' mL', w + 14, tickY + 3);
+            }
+
+            // Glass Reflection Effect
+            const glassGrad = ctx.createLinearGradient(0, 0, width, height);
+            glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
+            glassGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.01)');
+            glassGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.01)');
+            glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0.06)');
+            ctx.fillStyle = glassGrad;
+            ctx.fillRect(w, w, width - w * 2, height - w * 2);
+
+            ctx.restore();
+        }
+
+        function handleInteractions() {
+            const tempC = temperature;
+            const showBonds = chkBonds.checked;
+
+            for (let i = 0; i < molecules.length; i++) {
+                for (let j = i + 1; j < molecules.length; j++) {
+                    const m1 = molecules[i];
+                    const m2 = molecules[j];
+
+                    const dx = m2.x - m1.x;
+                    const dy = m2.y - m1.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    if (dist < 0.0001) continue;
+
+                    const minDist = m1.radiusO + m2.radiusO + 4; 
+
+                    if (dist < minDist) {
+                        const overlap = minDist - dist;
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+
+                        m1.x -= nx * overlap * 0.5;
+                        m1.y -= ny * overlap * 0.5;
+                        m2.x += nx * overlap * 0.5;
+                        m2.y += ny * overlap * 0.5;
+
+                        if (tempC < 0) {
+                            // SOLID
+                            const k = 0.35;
+                            m1.vx -= nx * overlap * k;
+                            m1.vy -= ny * overlap * k;
+                            m2.vx += nx * overlap * k;
+                            m2.vy += ny * overlap * k;
+                        } else if (tempC <= 100) {
+                            // LIQUID: Smooth sliding and hydrostatic leveling
+                            const k = 0.22;
+                            m1.vx -= nx * overlap * k;
+                            m1.vy -= ny * overlap * k;
+                            m2.vx += nx * overlap * k;
+                            m2.vy += ny * overlap * k;
+
+                            if (Math.abs(ny) > 0.35) {
+                                const spreadForce = overlap * 0.18 * Math.sign(nx || (Math.random() - 0.5));
+                                m1.vx -= spreadForce;
+                                m2.vx += spreadForce;
+                            }
+
+                            const tx = -ny;
+                            const ty = nx;
+                            const relTangentVel = (m2.vx - m1.vx) * tx + (m2.vy - m1.vy) * ty;
+                            const slideAssist = 0.15 * relTangentVel;
+
+                            m1.vx += tx * slideAssist;
+                            m1.vy += ty * slideAssist;
+                            m2.vx -= tx * slideAssist;
+                            m2.vy -= ty * slideAssist;
+                        } else {
+                            // GAS
+                            const k = 0.18;
+                            m1.vx -= nx * overlap * k;
+                            m1.vy -= ny * overlap * k;
+                            m2.vx += nx * overlap * k;
+                            m2.vy += ny * overlap * k;
+                        }
+                    }
+
+                    // Hydrogen Bonding (Attraction in Solid & Liquid)
+                    if (tempC <= 110 && dist < 34 && dist > minDist - 1) {
+                        const bondStrength = 0.04 * (1 - Math.min(tempC, 100) / 110);
+                        if (bondStrength > 0) {
+                            m1.vx += (dx / dist) * bondStrength;
+                            m1.vy += (dy / dist) * bondStrength;
+                            m2.vx -= (dx / dist) * bondStrength;
+                            m2.vy -= (dy / dist) * bondStrength;
+
+                            if (showBonds && dist < 32) {
+                                ctx.beginPath();
+                                ctx.moveTo(m1.x, m1.y);
+                                ctx.lineTo(m2.x, m2.y);
+                                ctx.strokeStyle = 'rgba(56, 189, 248, ' + (0.5 * (1 - dist / 32)) + ')';
+                                ctx.setLineDash([2, 3]);
+                                ctx.lineWidth = 1.5;
+                                ctx.stroke();
+                                ctx.setLineDash([]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(0, 0, width, height);
+
+            const tempC = temperature;
+            const useGravity = chkGravity.checked;
+
+            molecules.forEach(function(m) {
+                m.update(tempC, useGravity);
+            });
+
+            handleInteractions();
+
+            molecules.forEach(function(m) {
+                m.draw();
+            });
+
+            drawContainerWalls();
+
+            // Calculate kinetic energy & pressure telemetry
+            let totalEc = 0;
+            molecules.forEach(function(m) {
+                totalEc += 0.5 * (m.vx * m.vx + m.vy * m.vy);
+            });
+
+            currentPressure = 0.95 + (wallCollisionsCount * 0.015) + (temperature > 100 ? (temperature - 100) * 0.02 : 0);
+            wallCollisionsCount = Math.max(0, wallCollisionsCount - 1);
+
+            statKinetic.textContent = totalEc.toFixed(2) + ' J';
+            statPressure.textContent = currentPressure.toFixed(2) + ' atm';
+
+            requestAnimationFrame(animate);
+        }
+
+        function updateStateUI() {
+            const temp = temperature;
+            tempValue.textContent = temp;
+            kelvinValue.textContent = '(' + (temp + 273.15).toFixed(2) + ' K)';
+
+            if (temp < 0) {
+                stateBadge.className = 'px-3 py-1.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center space-x-2';
+                stateBadgeText.textContent = 'État Solide (Glace)';
+                infoTitle.textContent = 'État Solide (Glace)';
+                infoTitle.className = 'text-base font-bold text-sky-400 mb-2 flex items-center space-x-2';
+                infoDesc.textContent = "À l'état solide, les molécules d'eau sont organisées dans un maillage cristallin très compact. Les liaisons hydrogène les verrouillent en position fixe : elles ne glissent pas mais oscillent légèrement autour de leur position.";
+            } else if (temp <= 100) {
+                stateBadge.className = 'px-3 py-1.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center space-x-2';
+                stateBadgeText.textContent = 'État Liquide (Eau)';
+                infoTitle.textContent = 'État Liquide (Eau)';
+                infoTitle.className = 'text-base font-bold text-blue-400 mb-2 flex items-center space-x-2';
+                infoDesc.textContent = "À l'état liquide, l'agitation thermique casse et reforme continuellement les liaisons hydrogène. Les molécules restent proches mais peuvent glisser librement les unes sur les autres, formant une surface libre plane et horizontale sous l'effet de la pesanteur.";
+            } else {
+                stateBadge.className = 'px-3 py-1.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center space-x-2';
+                stateBadgeText.textContent = 'État Gazeux (Vapeur d\'eau)';
+                infoTitle.textContent = 'État Gazeux (Vapeur d\'eau)';
+                infoTitle.className = 'text-base font-bold text-rose-400 mb-2 flex items-center space-x-2';
+                infoDesc.textContent = "À l'état gazeux (vapeur), l'énergie cinétique est supérieure aux forces d'attraction intermoléculaires. Les molécules sont très éloignées, totalement désordonnées et se déplacent à grande vitesse en heurtant les parois (pression élevée).";
+            }
+        }
+
+        function setupEventListeners() {
+            window.addEventListener('resize', resizeCanvas);
+
+            tempSlider.addEventListener('input', function() {
+                temperature = parseFloat(tempSlider.value);
+                updateStateUI();
+            });
+
+            particleSlider.addEventListener('input', function() {
+                targetParticleCount = parseInt(particleSlider.value);
+                particleValue.textContent = targetParticleCount;
+                initMolecules();
+            });
+
+            btnIce.addEventListener('click', function() {
+                temperature = -15;
+                tempSlider.value = -15;
+                updateStateUI();
+                initMolecules();
+            });
+
+            btnLiquid.addEventListener('click', function() {
+                temperature = 20;
+                tempSlider.value = 20;
+                updateStateUI();
+                initMolecules();
+            });
+
+            btnGas.addEventListener('click', function() {
+                temperature = 120;
+                tempSlider.value = 120;
+                updateStateUI();
+                initMolecules();
+            });
+
+            btnPlayPause.addEventListener('click', function() {
+                isRunning = !isRunning;
+                if (isRunning) {
+                    playText.textContent = 'Pause';
+                    playIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+                } else {
+                    playText.textContent = 'Reprendre';
+                    playIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>';
+                }
+            });
+
+            btnReset.addEventListener('click', function() {
+                initMolecules();
+            });
+
+            // Canvas mouse & touch interactions
+            canvas.addEventListener('mousemove', function(e) {
+                const rect = canvas.getBoundingClientRect();
+                mouse.x = e.clientX - rect.left;
+                mouse.y = e.clientY - rect.top;
+                mouse.active = true;
+            });
+
+            canvas.addEventListener('mouseleave', function() {
+                mouse.active = false;
+            });
+
+            canvas.addEventListener('touchmove', function(e) {
+                if (e.touches.length > 0) {
+                    const rect = canvas.getBoundingClientRect();
+                    mouse.x = e.touches[0].clientX - rect.left;
+                    mouse.y = e.touches[0].clientY - rect.top;
+                    mouse.active = true;
+                }
+            }, { passive: true });
+
+            canvas.addEventListener('touchend', function() {
+                mouse.active = false;
+            });
+        }
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            width = canvas.width = container.clientWidth;
+            height = canvas.height = container.clientHeight;
+            initMolecules();
+        }
+
+        window.onload = function() {
+            resizeCanvas();
+            setupEventListeners();
+            updateStateUI();
+            animate();
+        };
+    </script>
+</body>
+</html>
